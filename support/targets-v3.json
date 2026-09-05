@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 3,
+  "payloads": [
+    {
+      "payloadId": "r0s-S901BXXSNGZD7",
+      "displayName": "Galaxy S22 SM-S901B | Kernel 5.10.237",
+      "models": ["SM-S901B"],
+      "kernelVersions": ["5.10.237"],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/Bodo121/IONSTACK-S22/main/artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so",
+        "size": 757976
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/Memetic0/Root-My-Galaxy-Payloads/main/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp",
+        "size": 4621280
+      }
+    }
+  ]
+}
