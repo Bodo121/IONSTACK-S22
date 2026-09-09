@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <linux/futex.h>
 #include <linux/memfd.h>
 #include <pthread.h>
@@ -293,6 +294,8 @@ extern atomic_int fake_fops_done;
 int exp_stack_once(uint64_t *buffer);
 int install_embedded_exp32(void);
 int doreplacefops(void);
+int select_perf_core(void);
+void pin_to_perf_core(void);
 
 int run_exploit(int argc, char **argv);
 void read_first_line(const char *path, char *buf, size_t len);

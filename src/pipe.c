@@ -183,7 +183,7 @@ uintptr_t prepare_pipe_buffer_page_child(void) {
   msg.msg_iovlen = 1;
 
   SYSCHK(sendmsg(pcp_sv[0], &msg, 0));
-  pin_to_core(CORE);
+  pin_to_perf_core();
 
   sched_yield();
   sched_yield();
@@ -246,7 +246,7 @@ uintptr_t prepare_pipe_buffer_page_child(void) {
     alloc_pipe_object(pipe_fds_drain[i]);
   }
 
-  pin_to_core(CORE);
+  pin_to_perf_core();
   SYSCHK(close(skb_sv[0]));
   SYSCHK(close(skb_sv[1]));
   for (size_t i = 0; i < PIPE_RECLAIM; i++) {

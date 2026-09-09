@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Android NDK r28c
+        run: |
+          mkdir -p "$HOME/android-ndk-cache"
+          cd "$HOME/android-ndk-cache"
+          curl -sL -o ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk-cache/android-ndk-r28c" >>"$GITHUB_ENV"
+
+      - name: Build S901BXXSNGZD7 payloads
+        run: make PROJECT=S901BXXSNGZD7 clean preload root-helper
+
+      - name: Rename + hash release files
+        run: |
+          mkdir -p release
+          cp build/S901BXXSNGZD7/bin/cve-2026-43499 release/cve-2026-43499-app.so
+          cp build/S901BXXSNGZD7/bin/cve-2026-43499-root release/cve-2026-43499-root
+          cp build/S901BXXSNGZD7/bin/cve-exp32 release/cve-exp32
+          (cd release && sha256sum * >SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

