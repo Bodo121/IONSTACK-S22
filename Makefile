@@ -19,6 +19,7 @@ endef
 USE_EXP64 := $(if $(wildcard $(TARGET_DIR)/exp64),1,)
 
 PRELOAD := $(OUTDIR)/cve-2026-43499
+APP_PRELOAD := $(OUTDIR)/cve-2026-43499-app.so
 ROOT_HELPER := $(OUTDIR)/cve-2026-43499-root
 
 ifdef USE_EXP64
@@ -185,15 +186,25 @@ SO_CFLAGS := -fPIC $(COMMON_CFLAGS)
 WARN_CFLAGS := -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function
 TARGET_CFLAGS := -DTARGET_CONFIG_H=\"targets/$(PROJECT)/target.h\" -I$(TARGET_DIR)
 
-.DEFAULT_GOAL := preload
+.DEFAULT_GOAL := all
 
-.PHONY: all preload root-helper info clean list-projects
+.PHONY: all preload app-preload root-helper release info clean list-projects
 
-all: preload root-helper
+all: preload app-preload root-helper
 
 preload: $(PRELOAD) $(EXP_OUT)
 
+app-preload: $(APP_PRELOAD)
+
 root-helper: $(ROOT_HELPER)
+
+release: all
+	mkdir -p artifacts/r0s-S901BXXSNGZD7
+	cp $(APP_PRELOAD) artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so
+	cp $(PRELOAD) artifacts/r0s-S901BXXSNGZD7/cve-2026-43499
+	cp $(ROOT_HELPER) artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-root
+	cp $(EXP_OUT) artifacts/r0s-S901BXXSNGZD7/$(notdir $(EXP_OUT))
+	(cd artifacts/r0s-S901BXXSNGZD7 && sha256sum cve-2026-43499-app.so cve-2026-43499 cve-2026-43499-root $(notdir $(EXP_OUT)) > SHA256SUMS)
 
 $(OUTDIR):
 	rm -rf $(OUTDIR)
@@ -222,6 +233,10 @@ $(PRELOAD): $(PRELOAD_SRCS) $(EMBED_EXP) $(TARGET_HEADER) src/offset.h src/commo
 	ln -sf $(notdir $@) $(OUTDIR)/cve.so
 	sha256sum $@
 
+$(APP_PRELOAD): $(PRELOAD)
+	cp $< $@
+	sha256sum $@
+
 info:
 	@echo "PROJECT=$(PROJECT)"
 	@echo "USE_EXP64=$(USE_EXP64)"
@@ -231,7 +246,9 @@ info:
 	@echo "TARGET_COMMON_LDFLAGS=$(TARGET_COMMON_LDFLAGS)"
 	@echo "TARGET_PIE_LDFLAGS=$(TARGET_PIE_LDFLAGS)"
 	@echo "PRELOAD=$(PRELOAD)"
+	@echo "APP_PRELOAD=$(APP_PRELOAD)"
 	@echo "ROOT_HELPER=$(ROOT_HELPER)"
+	@echo "EXP_OUT=$(EXP_OUT)"
 	@echo "CORE_SRCS=$(CORE_SRCS)"
 
 list-projects:

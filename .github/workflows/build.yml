@@ -28,13 +28,16 @@ jobs:
           echo "ANDROID_NDK_HOME=$HOME/android-ndk-cache/android-ndk-r28c" >>"$GITHUB_ENV"
 
       - name: Build S901BXXSNGZD7 payloads
-        run: make PROJECT=S901BXXSNGZD7 clean preload root-helper
+        run: make PROJECT=S901BXXSNGZD7 clean release
 
       - name: Hashes
         run: |
-          sha256sum build/S901BXXSNGZD7/bin/cve-2026-43499 \
+          sha256sum build/S901BXXSNGZD7/bin/cve-2026-43499-app.so \
+                    build/S901BXXSNGZD7/bin/cve-2026-43499 \
                     build/S901BXXSNGZD7/bin/cve-exp32 \
                     build/S901BXXSNGZD7/bin/cve-2026-43499-root | tee hashes.txt
+          (cd artifacts/r0s-S901BXXSNGZD7 && sha256sum -c SHA256SUMS)
+          cat artifacts/r0s-S901BXXSNGZD7/SHA256SUMS
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -42,8 +45,10 @@ jobs:
           name: S901BXXSNGZD7-bin
           path: |
             build/S901BXXSNGZD7/bin/cve-2026-43499
+            build/S901BXXSNGZD7/bin/cve-2026-43499-app.so
             build/S901BXXSNGZD7/bin/cve-exp32
             build/S901BXXSNGZD7/bin/cve-2026-43499-root
+            artifacts/r0s-S901BXXSNGZD7/SHA256SUMS
             hashes.txt
 
   port-check:

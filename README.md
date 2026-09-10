@@ -40,8 +40,8 @@ Makefile                          build (default PROJECT=S901BXXSNGZD7)
 src/                              shared exploit source
 src/targets/S901BXXSNGZD7/        target.h + exp32 stack geometry
 target_generator/                 kallsyms/config/offset extractor scripts
-artifacts/r0s-S901BXXSNGZD7/      prebuilt cve-2026-43499-app.so
-support/targets-v3.json           Root My Galaxy feed entry
+artifacts/r0s-S901BXXSNGZD7/      app payload, helper, exp32 and SHA256SUMS
+support/targets-v3.json           S22 Updater / Root My Galaxy-style feed entry
 ```
 
 `src/targets/S901BXXSNGZD7/target.h` carries the firmware offsets used for
@@ -68,13 +68,26 @@ for the 32-bit `exp32` stage (otherwise the NDK `armv7a` clang is used):
 make clean preload root-helper
 ```
 
+For a complete app/release bundle, use:
+
+```sh
+make clean release
+```
+
 Outputs:
 
 ```text
 build/S901BXXSNGZD7/bin/cve-2026-43499       LD_PRELOAD payload
+build/S901BXXSNGZD7/bin/cve-2026-43499-app.so app/feed payload (exp32 embedded)
 build/S901BXXSNGZD7/bin/cve-2026-43499-root  root helper
 build/S901BXXSNGZD7/bin/cve-exp32            32-bit stage (embedded)
+artifacts/r0s-S901BXXSNGZD7/SHA256SUMS       release checksums
 ```
+
+The app `.so` embeds the exp32 stage via `src/exp32_blob.S`, matching the
+Root-My-Galaxy payload shape. The root helper remains a separate executable by
+design; the app feed exposes it as `helper`, and the payload also honors
+`CVE43499_ROOT_HELPER` if a caller stages it at another `/data/local/tmp` path.
 
 ## Deploy
 
@@ -116,10 +129,14 @@ Root lives only in this boot through the helper daemon at
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so` | 757976 | `58f92d410e176566b6a21a1ae88b2a283c01962780e34c91ce45b4f1d3e0f869` |
+| `artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so` | 1761728 | `290edd6f18b468030dcbe73e5b0541c7c3aa6a3ace8670d3aba1935179f99bd8` |
+| `artifacts/r0s-S901BXXSNGZD7/cve-2026-43499` | 1761728 | `290edd6f18b468030dcbe73e5b0541c7c3aa6a3ace8670d3aba1935179f99bd8` |
+| `artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-root` | 13960 | `f28e778ac47a38826ccdfed8d49aaf40670a4af74ef10ac512414f844f9bdd6e` |
+| `artifacts/r0s-S901BXXSNGZD7/cve-exp32` | 1645496 | `023190461719fc4cc11a7d114ff8da5132f1afa0eba32c907053e83682914152` |
 
-`cve-2026-43499-root` (`80641cc7…`) and `cve-exp32` (`35fed8d7…`) are built
-alongside; only the preload ships as the app payload.
+The checked-in `support/targets-v3.json` includes the app payload SHA-256 and
+the helper artifact SHA-256, so S22 Updater can fetch and verify both before it
+runs the chain.
 
 ## Status / warnings
 
@@ -130,7 +147,7 @@ alongside; only the preload ships as the app payload.
   and idle while it runs.
 - Exact-build support for `SM-S901B` on `S901BXXSNGZD7` only. Other models,
   firmware, or kernel releases are not covered by these offsets.
-- KernelSU is out of scope for this profile.
+- KernelSU module metadata is pinned in the feed for app-side verification.
 
 ## Credits
 

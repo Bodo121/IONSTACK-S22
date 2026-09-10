@@ -8,11 +8,18 @@
       "kernelVersions": ["5.10.237"],
       "exploit": {
         "url": "https://raw.githubusercontent.com/Bodo121/IONSTACK-S22/main/artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so",
-        "size": 757976
+        "size": 1761728,
+        "sha256": "290edd6f18b468030dcbe73e5b0541c7c3aa6a3ace8670d3aba1935179f99bd8"
+      },
+      "helper": {
+        "url": "https://raw.githubusercontent.com/Bodo121/IONSTACK-S22/main/artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-root",
+        "size": 13960,
+        "sha256": "f28e778ac47a38826ccdfed8d49aaf40670a4af74ef10ac512414f844f9bdd6e"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/Memetic0/Root-My-Galaxy-Payloads/main/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp",
-        "size": 4621280
+        "url": "https://raw.githubusercontent.com/Bodo121/KSU-S22/main/kernelsu-r0s-S901BXXSNGZD7-kdp.ko",
+        "size": 432728,
+        "sha256": "bab4be3cbb4fe3eac47f71852a8980c226a004a85e4ebc146971576277a9b97d"
       }
     }
   ]

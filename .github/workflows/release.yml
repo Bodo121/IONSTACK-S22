@@ -24,15 +24,17 @@ jobs:
           echo "ANDROID_NDK_HOME=$HOME/android-ndk-cache/android-ndk-r28c" >>"$GITHUB_ENV"
 
       - name: Build S901BXXSNGZD7 payloads
-        run: make PROJECT=S901BXXSNGZD7 clean preload root-helper
+        run: make PROJECT=S901BXXSNGZD7 clean release
 
       - name: Rename + hash release files
         run: |
           mkdir -p release
-          cp build/S901BXXSNGZD7/bin/cve-2026-43499 release/cve-2026-43499-app.so
-          cp build/S901BXXSNGZD7/bin/cve-2026-43499-root release/cve-2026-43499-root
-          cp build/S901BXXSNGZD7/bin/cve-exp32 release/cve-exp32
-          (cd release && sha256sum * >SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cp artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-app.so release/cve-2026-43499-app.so
+          cp artifacts/r0s-S901BXXSNGZD7/cve-2026-43499 release/cve-2026-43499
+          cp artifacts/r0s-S901BXXSNGZD7/cve-2026-43499-root release/cve-2026-43499-root
+          cp artifacts/r0s-S901BXXSNGZD7/cve-exp32 release/cve-exp32
+          cp artifacts/r0s-S901BXXSNGZD7/SHA256SUMS release/SHA256SUMS.txt
+          (cd release && sha256sum -c SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

